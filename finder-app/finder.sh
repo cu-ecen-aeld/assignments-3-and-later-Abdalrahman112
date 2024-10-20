@@ -18,7 +18,7 @@ then
     X=$(wc -l <<< ${Files})
 
     # Variable Y represents the number of matching lines found in respective files
-    Y=$(cat ${Files} | grep ${searchstr} | wc -l)
+    Y=$(grep ${searchstr} ${Files} | wc -l)
 
     echo The number of files are ${X} and the number of matching lines are ${Y}
 
