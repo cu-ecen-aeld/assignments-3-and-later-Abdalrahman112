@@ -1,5 +1,10 @@
 #include "systemcalls.h"
 
+#include <unistd.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <string.h>
+
 /**
  * @param cmd the command to execute with system()
  * @return true if the command in @param cmd was executed
@@ -17,7 +22,14 @@ bool do_system(const char *cmd)
  *   or false() if it returned a failure
 */
 
-    return true;
+    int res = system(cmd);
+
+    if ((WIFSIGNALED(res)) && ((WTERMSIG(res) == SIGINT) || (WTERMSIG(res) == SIGQUIT)))
+        return false;
+
+
+    else 
+        return true;
 }
 
 /**
@@ -45,9 +57,10 @@ bool do_exec(int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
+    va_end(args);
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
-    command[count] = command[count];
+    // command[count] = command[count];
 
 /*
  * TODO:
@@ -59,8 +72,40 @@ bool do_exec(int count, ...)
  *
 */
 
-    va_end(args);
+    pid_t pid = fork();
 
+    if(pid == 0){
+        // Child process
+        char * arguments[count];
+
+        memcpy(arguments, command + 1, count * sizeof(char *));
+        // for(int i = 0; i< count + 1; i++){
+        //     printf("\n\n\ncommand No %d location %p", i, command[i]);
+        //     printf("command No %d: %s\n\n\n", i, command[i]);
+        // }
+        // for(int i = 0; i< count; i++){
+        //     printf("\n\n\nArgument No %d location %p", i, arguments[i]);
+        //     printf("Argument No %d: %s\n\n\n", i, arguments[i]);
+        // }
+        if(execv(command[0], command) < 0)
+            exit(EXIT_FAILURE); 
+
+    }
+    else if(pid < 0)
+        return false;
+
+    else{
+        // Parent process
+        int status;
+        if(waitpid(pid, &status, 0) == -1)  
+            return false;
+
+        // printf("\n\nCommand = %s\texecv status = %d\n\n", command[0],WEXITSTATUS(status));
+        
+        if((!WIFEXITED(status) || (WEXITSTATUS(status) != 0))){
+            return false;
+        }
+    }
     return true;
 }
 
@@ -80,9 +125,10 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
+    va_end(args);
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
-    command[count] = command[count];
+    // command[count] = command[count];
 
 
 /*
@@ -93,7 +139,46 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *
 */
 
-    va_end(args);
+    pid_t pid = fork();
 
+    int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 00777);
+
+    if(pid == 0){
+        // Child process
+        char * arguments[count];
+
+        memcpy(arguments, command + 1, count * sizeof(char *));
+        // for(int i = 0; i< count + 1; i++){
+        //     printf("\n\n\ncommand No %d location %p", i, command[i]);
+        //     printf("command No %d: %s\n\n\n", i, command[i]);
+        // }
+        // for(int i = 0; i< count; i++){
+        //     printf("\n\n\nArgument No %d location %p", i, arguments[i]);
+        //     printf("Argument No %d: %s\n\n\n", i, arguments[i]);
+        // }
+        
+        dup2(fd, 1);
+        // close(fd);
+        if(execv(command[0], command) < 0)
+            exit(EXIT_FAILURE); 
+    }
+
+    else if(pid < 0){
+        // close(fd);
+        return false;
+    }
+
+    else{
+        // Parent process
+        int status;
+        if(waitpid(pid, &status, 0) == -1)  
+            return false;
+
+        // printf("\n\nCommand = %s\t%s\texecv status = %d\n\n", command[0],command[1],WEXITSTATUS(status));
+        
+        if((!WIFEXITED(status) || (WEXITSTATUS(status) != 0))){
+            return false;
+        }
+    }
     return true;
 }
